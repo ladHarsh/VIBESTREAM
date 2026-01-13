@@ -124,13 +124,26 @@ st.markdown(
 @st.cache_resource
 def load_data():
     try:
-        movies = pickle.load(open("movie_list.pkl", "rb"))
-        return movies
-    except FileNotFoundError:
-        return None
+        movies = pickle.load(open('movie_list.pkl', 'rb'))
 
+        # 🔹 Create tags column if missing
+        if 'tags' not in movies.columns:
+            movies['tags'] = (
+                movies['overview'].fillna('') + " " +
+                movies['genres'].fillna('') + " " +
+                movies['keywords'].fillna('')
+            )
 
-movies = load_data()
+        cv = CountVectorizer(max_features=5000, stop_words='english')
+        vectors = cv.fit_transform(movies['tags']).toarray()
+        similarity = cosine_similarity(vectors)
+
+        return movies, similarity
+
+    except Exception as e:
+        st.error(f"Data loading error: {e}")
+        return None, None
+
 
 
 # ================= 4. API FUNCTIONS =================
@@ -166,7 +179,7 @@ def recommend(movie):
 st.markdown('<div class="brand-title">VIBESTREAM ⚡</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Stop doomscrolling. Start watching.</div>', unsafe_allow_html=True)
 
-if movies is not None:
+if movies is not None and similarity is not None:
     col_left, col_mid, col_right = st.columns([0.5, 5, 0.5])
 
     with col_mid:
