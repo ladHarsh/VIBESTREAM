@@ -137,7 +137,7 @@ movies = load_data()
 @st.cache_data(show_spinner=False)
 def fetch_poster(movie_id):
     try:
-        url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key=8265bd1679663a7ea12ac168da84d2e8"
+        url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={st.secrets["TMDB_API_KEY"]}"
         response = requests.get(url, timeout=3)
         data = response.json()
         if data.get("poster_path"):
