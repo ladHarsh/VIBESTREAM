@@ -125,13 +125,12 @@ st.markdown(
 def load_data():
     try:
         movies = pickle.load(open("movie_list.pkl", "rb"))
-        similarity = pickle.load(open("similarity.pkl", "rb"))
-        return movies, similarity
+        return movies
     except FileNotFoundError:
-        return None, None
+        return None
 
 
-movies, similarity = load_data()
+movies = load_data()
 
 
 # ================= 4. API FUNCTIONS =================
