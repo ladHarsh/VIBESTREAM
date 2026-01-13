@@ -2,6 +2,10 @@ import pickle
 import streamlit as st
 import requests
 
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+
 # ================= 1. PAGE CONFIGURATION =================
 st.set_page_config(
     page_title="VibeStream",
@@ -10,17 +14,16 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+
 # ================= 2. PROFESSIONAL CSS & ANIMATION =================
 st.markdown(
     """
     <style>
-    /* --- REMOVE DEFAULT STREAMLIT PADDING --- */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 0rem !important;
     }
 
-    /* --- ANIMATED AURORA BACKGROUND --- */
     .stApp {
         background: linear-gradient(-45deg, #000000, #1a0b2e, #110f16, #2d1b4e);
         background-size: 400% 400%;
@@ -34,7 +37,6 @@ st.markdown(
         100% { background-position: 0% 50%; }
     }
 
-    /* --- RESPONSIVE MOVIE GRID --- */
     .movie-grid {
         display: grid;
         grid-template-columns: repeat(5, 1fr);
@@ -49,71 +51,49 @@ st.markdown(
         }
     }
 
-    /* --- MOVIE CARD --- */
     .movie-card {
         background: rgba(255, 255, 255, 0.08);
         border-radius: 10px;
         overflow: hidden;
         border: 1px solid rgba(255, 255, 255, 0.1);
         transition: transform 0.3s ease, box-shadow 0.3s ease;
-        position: relative;
     }
 
     .movie-card:hover {
         transform: scale(1.03);
         border-color: #8a2be2;
         box-shadow: 0 0 15px rgba(138, 43, 226, 0.4);
-        z-index: 10;
     }
 
     .movie-card img {
         width: 100%;
-        height: auto;
-        display: block;
         pointer-events: none;
     }
 
     .movie-title-card {
         padding: 8px 4px;
         font-size: 0.8rem;
-        font-weight: 600;
         text-align: center;
-        color: #e0e0e0;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        background: rgba(0, 0, 0, 0.3);
+        background: rgba(0,0,0,0.3);
     }
 
-    /* --- HEADER STYLING (Anchor link removed) --- */
     .brand-title {
         text-align: center;
+        font-size: 2.2rem;
         font-weight: 800;
-        letter-spacing: -1px;
-        margin-bottom: 0px !important;
-        padding-bottom: 0px !important;
-        font-size: 2.2rem !important;
-        text-transform: uppercase;
-        background: linear-gradient(to right, #ffffff, #a2a2a2);
+        background: linear-gradient(to right, #fff, #a2a2a2);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        font-family: 'Source Sans Pro', sans-serif;
     }
 
     .subtitle {
         text-align: center;
         color: #b0b0b0;
         font-size: 0.9rem;
-        font-weight: 300;
-        margin-top: 0px;
         margin-bottom: 20px;
     }
 
-    /* --- HIDE STREAMLIT DEFAULT UI --- */
-    #MainMenu { visibility: hidden; }
-    footer { visibility: hidden; }
-    header { visibility: hidden; }
-
+    #MainMenu, footer, header { visibility: hidden; }
     </style>
     """,
     unsafe_allow_html=True
@@ -121,38 +101,43 @@ st.markdown(
 
 
 # ================= 3. DATA LOADING =================
+movies = None
+similarity = None
+
+
 @st.cache_resource
 def load_data():
     try:
-        movies = pickle.load(open('movie_list.pkl', 'rb'))
+        movies_df = pickle.load(open("movie_list.pkl", "rb"))
 
-        # 🔹 Create tags column if missing
-        if 'tags' not in movies.columns:
-            movies['tags'] = (
-                movies['overview'].fillna('') + " " +
-                movies['genres'].fillna('') + " " +
-                movies['keywords'].fillna('')
+        if "tags" not in movies_df.columns:
+            movies_df["tags"] = (
+                movies_df["overview"].fillna("") + " " +
+                movies_df["genres"].fillna("") + " " +
+                movies_df["keywords"].fillna("")
             )
 
-        cv = CountVectorizer(max_features=5000, stop_words='english')
-        vectors = cv.fit_transform(movies['tags']).toarray()
-        similarity = cosine_similarity(vectors)
+        cv = CountVectorizer(max_features=5000, stop_words="english")
+        vectors = cv.fit_transform(movies_df["tags"]).toarray()
+        similarity_matrix = cosine_similarity(vectors)
 
-        return movies, similarity
+        return movies_df, similarity_matrix
 
     except Exception as e:
         st.error(f"Data loading error: {e}")
         return None, None
 
 
+movies, similarity = load_data()
+
 
 # ================= 4. API FUNCTIONS =================
 @st.cache_data(show_spinner=False)
 def fetch_poster(movie_id):
     try:
+        api_key = st.secrets["TMDB_API_KEY"]
         url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={st.secrets["TMDB_API_KEY"]}"
-        response = requests.get(url, timeout=3)
-        data = response.json()
+        data = requests.get(url, timeout=3).json()
         if data.get("poster_path"):
             return "https://image.tmdb.org/t/p/w500/" + data["poster_path"]
     except Exception:
@@ -162,29 +147,33 @@ def fetch_poster(movie_id):
 
 def recommend(movie):
     index = movies[movies["title"] == movie].index[0]
-    distances = sorted(list(enumerate(similarity[index])), reverse=True, key=lambda x: x[1])
+    distances = sorted(
+        list(enumerate(similarity[index])),
+        reverse=True,
+        key=lambda x: x[1]
+    )
 
-    recommendations = []
+    recs = []
     for i in distances[1:11]:
         movie_id = movies.iloc[i[0]].movie_id
-        recommendations.append({
+        recs.append({
             "title": movies.iloc[i[0]].title,
-            "poster": fetch_poster(movie_id),
+            "poster": fetch_poster(movie_id)
         })
-    return recommendations
+    return recs
 
 
 # ================= 5. MAIN APP UI =================
-# Brand title as Div to avoid anchor links
 st.markdown('<div class="brand-title">VIBESTREAM ⚡</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Stop doomscrolling. Start watching.</div>', unsafe_allow_html=True)
 
 if movies is not None and similarity is not None:
-    col_left, col_mid, col_right = st.columns([0.5, 5, 0.5])
+
+    _, col_mid, _ = st.columns([0.5, 5, 0.5])
 
     with col_mid:
         selected_movie = st.selectbox(
-            "Search for a movie...",
+            "Search",
             movies["title"].values,
             index=None,
             placeholder="Type a movie name...",
@@ -199,21 +188,21 @@ if movies is not None and similarity is not None:
 
     if btn and selected_movie:
         with st.spinner("Analyzing..."):
-            recommendations = recommend(selected_movie)
-            st.write("---")
+            results = recommend(selected_movie)
 
-            # Building HTML string without indentation to prevent "Code Block" bug
             html = '<div class="movie-grid">'
-            for movie in recommendations:
-                html += f'<div class="movie-card">'
-                html += f'<img src="{movie["poster"]}" alt="{movie["title"]}">'
-                html += f'<div class="movie-title-card">{movie["title"]}</div>'
-                html += f'</div>'
+            for movie in results:
+                html += f"""
+                <div class="movie-card">
+                    <img src="{movie['poster']}" alt="{movie['title']}">
+                    <div class="movie-title-card">{movie['title']}</div>
+                </div>
+                """
             html += "</div>"
 
             st.markdown(html, unsafe_allow_html=True)
 
-    elif btn and not selected_movie:
+    elif btn:
         st.warning("⚠️ Please select a movie first!")
 
 else:
