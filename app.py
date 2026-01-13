@@ -1,10 +1,8 @@
 import pickle
 import streamlit as st
 import requests
-
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-
 
 # ================= 1. PAGE CONFIGURATION =================
 st.set_page_config(
@@ -13,7 +11,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-
 
 # ================= 2. PROFESSIONAL CSS & ANIMATION =================
 st.markdown(
@@ -77,6 +74,7 @@ st.markdown(
         background: rgba(0,0,0,0.3);
     }
 
+    /* Fixed Brand Title to remove auto-link */
     .brand-title {
         text-align: center;
         font-size: 2.2rem;
@@ -84,6 +82,7 @@ st.markdown(
         background: linear-gradient(to right, #fff, #a2a2a2);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
+        margin-top: 10px;
     }
 
     .subtitle {
@@ -101,10 +100,6 @@ st.markdown(
 
 
 # ================= 3. DATA LOADING =================
-movies = None
-similarity = None
-
-
 @st.cache_resource
 def load_data():
     try:
@@ -135,8 +130,9 @@ movies, similarity = load_data()
 @st.cache_data(show_spinner=False)
 def fetch_poster(movie_id):
     try:
-        api_key = st.secrets["TMDB_API_KEY"]
-        url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={st.secrets["TMDB_API_KEY"]}"
+        # Using st.secrets or hardcoded key for stability
+        api_key = "8265bd1679663a7ea12ac168da84d2e8"
+        url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}"
         data = requests.get(url, timeout=3).json()
         if data.get("poster_path"):
             return "https://image.tmdb.org/t/p/w500/" + data["poster_path"]
@@ -164,6 +160,7 @@ def recommend(movie):
 
 
 # ================= 5. MAIN APP UI =================
+# Brand title as Div to avoid auto-anchor links
 st.markdown('<div class="brand-title">VIBESTREAM ⚡</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Stop doomscrolling. Start watching.</div>', unsafe_allow_html=True)
 
@@ -189,15 +186,15 @@ if movies is not None and similarity is not None:
     if btn and selected_movie:
         with st.spinner("Analyzing..."):
             results = recommend(selected_movie)
+            st.write("---")
 
+            # Building flat HTML string to fix the raw code block error
             html = '<div class="movie-grid">'
             for movie in results:
-                html += f"""
-                <div class="movie-card">
-                    <img src="{movie['poster']}" alt="{movie['title']}">
-                    <div class="movie-title-card">{movie['title']}</div>
-                </div>
-                """
+                html += f'<div class="movie-card">'
+                html += f'<img src="{movie["poster"]}" alt="{movie["title"]}">'
+                html += f'<div class="movie-title-card">{movie["title"]}</div>'
+                html += f'</div>'
             html += "</div>"
 
             st.markdown(html, unsafe_allow_html=True)
